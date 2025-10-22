@@ -398,6 +398,47 @@ mod test {
         // triangles are always ccw, thus positive
         assert_relative_eq!(triangle.signed_area(), 0.5);
     }
+    #[test]
+    fn area_triangle_numerical_stability() {
+        let triangle = Triangle::<f64>::new(
+            coord! { x: 0.0, y: 0.0 },
+            coord! { x: 0.1, y: 10.0 },
+            coord! { x: 0.0, y: 20.0 },
+        );
+
+        let area = triangle.signed_area();
+
+        let shift = coord! { x: 1.5e8, y: 1.5e8 };
+
+        use crate::map_coords::MapCoords;
+        let triangle = triangle.map_coords(|c| c + shift);
+
+        let new_area = triangle.signed_area();
+        let err = (area - new_area).abs() / area;
+
+        assert!(err < 1e-2);
+    }
+    #[test]
+    fn area_triangle_same_as_polygon() {
+        let shift = coord! { x: 1.5e8, y: 1.5e8 };
+
+        use crate::map_coords::MapCoords;
+        let triangle = Triangle::new(
+            coord! { x: 0.0, y: 0.0 },
+            coord! { x: 0.1, y: 10.0 },
+            coord! { x: 0.0, y: 20.0 },
+        )
+        .map_coords(|c| c + shift);
+
+        let triangle_area: f64 = triangle.signed_area();
+
+        let polygon = triangle.to_polygon();
+        let polygon_area = polygon.signed_area();
+
+        let err = (polygon_area - triangle_area).abs() / polygon_area;
+
+        assert!(err < 1e-2);
+    }
 
     #[test]
     fn area_multi_polygon_area_reversed() {
