@@ -17,26 +17,36 @@ where
         return T::zero();
     }
 
-    // Use a reasonable shift for the line-string coords
-    // to avoid numerical-errors when summing the
-    // determinants.
-    //
-    // Note: we can't use the `Centroid` trait as it
-    // requires `T: Float` and in fact computes area in the
-    // implementation. Another option is to use the average
-    // of the coordinates, but it is not fool-proof to
-    // divide by the length of the linestring (eg. a long
-    // line-string with T = u8)
-    let shift = linestring.0[0];
+    sum_line_determinants(linestring.lines())
+}
 
-    let mut tmp = T::zero();
-    for line in linestring.lines() {
-        use crate::MapCoords;
+/// Adds up the determinants of a series of `lines`, shifted by the first coordinate.
+///
+/// Each coordinate is shifted by subtracting the first coordinate,
+/// effectively translating the geometry so that the first coordinate becomes the origin.
+/// This helps to reduce numerical errors when summing the determinants for area calculations.
+///
+/// Note that we can't use the `Centroid` trait as it requires `T: Float` and in fact computes area in the
+/// implementation. Another option is to use the average of the coordinates, but it is not fool-proof to
+/// divide by the length of the linestring (eg. a long line-string with T = u8)
+fn sum_line_determinants<T: CoordNum, I: Iterator<Item = Line<T>>>(mut lines: I) -> T {
+    use crate::MapCoords;
+
+    let shift = if let Some(next) = lines.next() {
+        next.start
+    } else {
+        return T::zero();
+    };
+
+    // NOTE: We can ignore the determinant of the first line (always zero after shifting)
+    let mut sum = T::zero();
+
+    for line in lines {
         let line = line.map_coords(|c| c - shift);
-        tmp = tmp + line.determinant();
+        sum = sum + line.determinant();
     }
 
-    tmp
+    sum
 }
 
 /// Signed and unsigned planar area of a geometry.
@@ -215,10 +225,7 @@ where
     T: CoordFloat,
 {
     fn signed_area(&self) -> T {
-        self.to_lines()
-            .iter()
-            .fold(T::zero(), |total, line| total + line.determinant())
-            / (T::one() + T::one())
+        sum_line_determinants(self.to_lines().into_iter()) / (T::one() + T::one())
     }
 
     fn unsigned_area(&self) -> T {
