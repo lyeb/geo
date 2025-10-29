@@ -26,6 +26,12 @@ fn criterion_benchmark(c: &mut Criterion) {
             );
         })
     });
+
+    c.bench_function("multipolygon area", |bencher| {
+        let nl_plots = geo_test_fixtures::nl_plots_wgs84::<f32>();
+
+        bencher.iter(|| criterion::black_box(criterion::black_box(&nl_plots).signed_area()))
+    });
 }
 
 criterion_group!(benches, criterion_benchmark);
