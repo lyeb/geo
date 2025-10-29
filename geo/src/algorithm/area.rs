@@ -17,10 +17,10 @@ where
         return T::zero();
     }
 
-    sum_line_determinants(linestring.lines())
+    sum_line_determinants(&linestring.0)
 }
 
-/// Adds up the determinants of a series of `lines`, shifted by the first coordinate.
+/// Adds up the determinants of the lines between a series of `points` shifted by the first coordinate.
 ///
 /// Each coordinate is shifted by subtracting the first coordinate,
 /// effectively translating the geometry so that the first coordinate becomes the origin.
@@ -29,21 +29,23 @@ where
 /// Note that we can't use the `Centroid` trait as it requires `T: Float` and in fact computes area in the
 /// implementation. Another option is to use the average of the coordinates, but it is not fool-proof to
 /// divide by the length of the linestring (eg. a long line-string with T = u8)
-fn sum_line_determinants<T: CoordNum, I: Iterator<Item = Line<T>>>(mut lines: I) -> T {
-    use crate::MapCoords;
-
-    let shift = if let Some(next) = lines.next() {
-        next.start
-    } else {
+fn sum_line_determinants<T: CoordNum>(points: &[Coord<T>]) -> T {
+    if points.len() <= 2 {
         return T::zero();
-    };
+    }
 
-    // NOTE: We can ignore the determinant of the first line (always zero after shifting)
+    // NOTE: We can ignore the determinant of the first and last line (always zero after shifting)
     let mut sum = T::zero();
 
-    for line in lines {
-        let line = line.map_coords(|c| c - shift);
+    let shift = points[0];
+    let mut prev = points[1] - shift;
+
+    for point in &points[2..] {
+        let shifted = *point - shift;
+        let line = Line::new(prev, shifted);
+
         sum = sum + line.determinant();
+        prev = shifted;
     }
 
     sum
@@ -225,7 +227,7 @@ where
     T: CoordFloat,
 {
     fn signed_area(&self) -> T {
-        sum_line_determinants(self.to_lines().into_iter()) / (T::one() + T::one())
+        sum_line_determinants(&self.to_array()) / (T::one() + T::one())
     }
 
     fn unsigned_area(&self) -> T {
